@@ -8,7 +8,7 @@
 ******************************Start*************************************
 
 *import capm five factor data from Kenneth French data library
-import delimited "F-F_Research_Data_5_Factors_2x3_daily.CSV", clear
+import delimited "F-F_Research_Data_Factors_daily.CSV", clear
 
 *change date format
 tostring date, replace
@@ -22,7 +22,7 @@ drop date year month day
 rename date1 date
 order date, before(mktrf)
 
-save "capm.dta", replace
+save "Lecture 7 Ken Kenneth data.dta", replace
 
 
 
@@ -688,32 +688,31 @@ save "Lecture 7 crsp.dta", replace
 
 
 use "Lecture 7 crsp.dta", clear
-
-merge m:1 date using "Lecture 7 Ken Kenneth data.dta", keepusing(rf mktrf smb hml rmw cma)
-	keep if _merge ==3
-	drop _merge
 gen year = year(date)
 	order year, before(date)
 	drop if ticker ==""
+	drop if year<2010 
+merge m:1 date using "Lecture 7 Ken Kenneth data.dta", keepusing(rf mktrf smb hml)
+	keep if _merge ==3
+	drop _merge
 duplicates drop ticker date, force
 	sort ticker date
 	duplicates examples ticker date
 	*(firm date level panel data)
 
-xtset 
+
 	
 	
 *generate excess return and winsorize at 1% level to avoid outlier
 gen exret = ret-rf
-summarize exret, detail
 winsor exret, gen(exret_w) p(0.01)
-summarize exret_w, detail
+
 
 *histogram
 histogram exret_w
 
 *summary statistics
-fsum exret_w mktrf smb hml rmw cma
+fsum exret_w mktrf smb hml
 
 
 *capm model
@@ -721,54 +720,55 @@ reg exret_w mktrf
 reg exret_w mktrf i.industry
 reg exret_w mktrf i.industry i.year
 reg exret_w mktrf i.industry i.year, cl(ticker) r
+	outreg2 using Table_1, replace excel tstat bdec(3) tdec(3) rdec(3) ctitle (exret_w ) keep (mktrf) addtext(Industry FE, YES, Year FE, YES)
+
 
 
 
 *ff3 factor model
 reg exret_w mktrf smb hml i.industry i.year, cl(ticker) r
-
-
-*ff5 factor model
-reg exret_w mktrf smb hml rmw cma i.industry i.year, cl(ticker) r
+	outreg2 using Table_1, append excel tstat bdec(3) tdec(3) rdec(3) ctitle (exret_w ) keep (mktrf smb hml ) addtext(Industry FE, YES, Year FE, YES)
 
 
 
-**************************************Are stocks overpeform or underperforme during covid19 period?*******************************
-preserve 
-drop if year<2010 
+
+
+
+
+*****************Can we predict stock return during covid using pre-covid trend?***************
+
+*****************Predict normal excess return and calculate abnormal return***************
+
 
 *capm model (2010-2018)
 reg exret_w mktrf i.industry i.year if year>=2010 & year<=2018, cl(ticker) r
-predict norm_exret_capm
-gen abnorm_exret_capm = exret-norm_exret_capm
+	predict norm_exret_capm
+	gen abnorm_exret_capm = exret-norm_exret_capm
 
 *ff3 factor model (2010-2018)
 reg exret_w mktrf smb hml i.industry i.year if year>=2010 & year<=2018, cl(ticker) r
-predict norm_exret_ff3
-gen abnorm_exret_ff3 = exret-norm_exret_ff3
+	predict norm_exret_ff3
+	gen abnorm_exret_ff3 = exret-norm_exret_ff3
 
-*ff5 factor model (2010-2018)
-reg exret_w mktrf smb hml rmw cma i.industry i.year if year>=2010 & year<=2018, cl(ticker) r
-predict norm_exret_ff5
-gen abnorm_exret_ff5 = exret-norm_exret_ff5
+
 
 
 
 **************************************Time series analysis*******************************
 
-summarize abnorm_exret_capm abnorm_exret_ff3 abnorm_exret_ff5 if year>=2010 & year<=2018
-summarize abnorm_exret_capm abnorm_exret_ff3 abnorm_exret_ff5 if year>=2019 & year<=2022
+summarize abnorm_exret_capm abnorm_exret_ff3 if year>=2010 & year<=2018
+summarize abnorm_exret_capm abnorm_exret_ff3 if year>=2019 & year<=2022
 gen covid = 1 if year >=2019 & year<=2022
 replace covid = 0 if year>=2010 & year<=2018
 ttest abnorm_exret_capm, by(covid)
 
 forvalues i=2010(1)2022 {
-	summarize abnorm_exret_capm abnorm_exret_ff3 abnorm_exret_ff5 if year==`i'
+	summarize abnorm_exret_capm abnorm_exret_ff3 if year==`i'
 }
 
 *placebo test
 
-replace post =.
+gen post =.
 replace post  = 1 if year ==2019 
 replace post = 0 if year>=2010 & year<=2018
 ttest abnorm_exret_capm, by(post)
@@ -817,49 +817,27 @@ ttest abnorm_exret_ff3, by(post)
 
 
 
-*placebo test
-
-replace post =.
-replace post  = 1 if year ==2019 
-replace post = 0 if year>=2010 & year<=2018
-ttest abnorm_exret_ff5, by(post)
-
-
-replace post =.
-replace post  = 1 if year ==2020 
-replace post = 0 if year>=2010 & year<=2018
-ttest abnorm_exret_ff5, by(post)
-
-replace post =.
-replace post  = 1 if year ==2021 
-replace post = 0 if year>=2010 & year<=2018
-ttest abnorm_exret_ff5, by(post)
-
-replace post =.
-replace post  = 1 if year ==2022 
-replace post = 0 if year>=2010 & year<=2018
-ttest abnorm_exret_ff5, by(post)
 
 
 *scatter plot for some stock examples (APPLE)
+di date("20190101","YMD")
 
-twoway scatter abnorm_exret_capm date if year>=2015 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_capm date if year>=2015 & year<=2018 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_capm date if year>=2019 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL", msize(thick) legend(order(1 "Abnoral return (CAPM) scatter" 2 "Abnoral return (CAPM) polynomial fit" )) xtitle(date) ytitle(Abnoral return (CAPM) ) xline(21581) 
+twoway scatter abnorm_exret_capm date if year>=2015 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_capm date if year>=2015 & year<=2018 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_capm date if year>=2019 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL", msize(thick) legend(order(1 "Abnoral return (CAPM) scatter" 2 "Abnoral return (CAPM) polynomial fit" )) xtitle(date) ytitle(Abnoral return (CAPM) ) xline(21550) 
 
-twoway scatter abnorm_exret_ff3 date if year>=2010 & year<=2022 & ticker == "AAPL" 
-twoway scatter abnorm_exret_ff5 date if year>=2010 & year<=2022 & ticker == "AAPL" 
+twoway scatter abnorm_exret_ff3 date if year>=2015 & year<=2022 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_ff3 date if year>=2015 & year<=2018 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_ff3 date if year>=2019 & year<=2022 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL", msize(thick) legend(order(1 "Abnoral return (FF3) scatter" 2 "Abnoral return (FF3) polynomial fit" )) xtitle(date) ytitle(Abnoral return (FF3) ) xline(21550) 
+
 
 
 * create bin indicator [break into 80 equally spaced categories from -0.1 to +0.1]
 di date("19900101","YMD")
-di date("20190201","YMD")
 di date("20221231","YMD")
-gen bin = autocode(date, 800, 10958, 23010) if year>=2015 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL"
+gen bin = autocode(date, 800, 10958, 23010) if year>=2015 & year<=2022 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL"
 * code average dv in each bin
-egen abnorm_exret_capm_bin = mean(abnorm_exret_capm) if year>=2010 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL", by(bin) 
+egen abnorm_exret_ff3_bin = mean(abnorm_exret_ff3) if year>=2010 & year<=2022 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL", by(bin) 
 
 * scatter plot and polynomial fit within bin
 
-twoway scatter abnorm_exret_capm_bin date if year>=2015 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_capm_bin date if year>=2015 & year<=2018 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_capm_bin date if year>=2019 & year<=2022 & abnorm_exret_capm>=-0.1 & abnorm_exret_capm<=0.1 & ticker == "AAPL", msize(thick) legend(order(1 "Abnoral return (CAPM) scatter" 2 "Abnoral return (CAPM) polynomial fit" )) xtitle(date) ytitle(Abnoral return (CAPM) ) xline(21581) 
+twoway scatter abnorm_exret_ff3_bin date if year>=2015 & year<=2022 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_ff3_bin date if year>=2015 & year<=2018 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL" || fpfit abnorm_exret_ff3_bin date if year>=2019 & year<=2022 & abnorm_exret_ff3>=-0.1 & abnorm_exret_ff3<=0.1 & ticker == "AAPL", msize(thick) legend(order(1 "Abnoral return (FF3) scatter" 2 "Abnoral return (FF3) polynomial fit" )) xtitle(date) ytitle(Abnoral return (FF3) ) xline(21550) 
 
 
 
@@ -870,9 +848,9 @@ twoway scatter abnorm_exret_capm_bin date if year>=2015 & year<=2022 & abnorm_ex
 
 
 reg abnorm_exret_capm covid i.industry i.year , cl(ticker) r
+outreg2 using Table_2, replace excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_capm ) keep (covid) addtext(Industry FE, YES, Year FE, YES)
 reg abnorm_exret_ff3 covid i.industry i.year , cl(ticker) r
-reg abnorm_exret_ff5 covid i.industry i.year , cl(ticker) r
-
+outreg2 using Table_2, replace excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_ff3 ) keep (covid) addtext(Industry FE, YES, Year FE, YES)
 
 
 
@@ -885,20 +863,14 @@ reg abnorm_exret_ff5 covid i.industry i.year , cl(ticker) r
 
 forvalues i=1(1)48{
 	reg abnorm_exret_capm covid i.year if industry == `i', cl(ticker) r
-	outreg2 using Table_1, append excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_capm ) keep (covid) addtext(Industry 2-digit SIC, `i', Year FE, YES)
+	outreg2 using Table_3, append excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_capm ) keep (covid) addtext(Industry 2-digit SIC, `i', Year FE, YES)
 	}
 	
 forvalues i=1(1)48{
 	reg abnorm_exret_ff3 covid i.year if industry == `i', cl(ticker) r
-	outreg2 using Table_1, append excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_ff3 ) keep (covid) addtext(Industry 2-digit SIC, `i', Year FE, YES)
-	}	
-	
-forvalues i=1(1)48{
-	reg abnorm_exret_ff5 covid i.year if industry == `i', cl(ticker) r
-	outreg2 using Table_1, append excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_ff5 ) keep (covid) addtext(Industry 2-digit SIC, `i', Year FE, YES)
+	outreg2 using Table_3, append excel tstat bdec(3) tdec(3) rdec(3) ctitle (abnorm_exret_ff3 ) keep (covid) addtext(Industry 2-digit SIC, `i', Year FE, YES)
 	}	
 
-	
 
 	
 	
