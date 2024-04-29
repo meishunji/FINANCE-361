@@ -1,0 +1,26 @@
+Read me:
+This interactive lecture session helps you understand the randomized controlled trials (RCT) and difference-in-difference (DiD) tests. 
+Both of tests are important in determining causal inference in finance.
+
+Randomized controlled trials: 
+1. Assign samples to control group and treatment group randomly.
+2. Give treatment effect to treatment group but give placebo to control group.
+3. Compare the difference in outcome.
+
+Difference-in-difference tests:
+1. Identify one exogenous shock that randomly affects one small group (treatment group) but not affect others (controll group).
+2. Calculate difference between two groups before the schock.
+3. Calculate difference between two groups after the shock.
+4. Calculate difference in difference.
+
+
+******************************To do list*********************************
+Instruction:
+
+
+files used:
+1. STAR case (star.dta)
+2. Worker Compensation Case (injury.dta)
+
+coding:
+RCT & DiD.do
