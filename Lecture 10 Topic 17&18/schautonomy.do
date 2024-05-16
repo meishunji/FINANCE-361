@@ -116,7 +116,7 @@ Linear regression                               Number of obs     =        129
 
 
 *(e)
-*assumption: no manipulation, no covariates jump, no override
+*assumption: no manipulation (Units cannot precisely manipulate the assignment variable to influence whether they receive the treatment or not), no covariates jump (all other factors affecting y are continuous (no jumps) with respect to x (assignment variable) at cutoff c.), no override (Participants (evaluators) should not affect the assignment (or not) to the treatment)
 
 *(f)
 *quadratic fit 
